@@ -22,6 +22,7 @@
 #include <fstream>
 #include <atomic>
 #include <thread>
+#include <glog/logging.h>
 
 
 #include "audio.h"
@@ -29,6 +30,7 @@
 #include "tclap/CmdLine.h"
 #include "portaudio.h"
 #include "microphone.h"
+
 
 /**
  * Define a semi-cross platform helper method that waits/sleeps for a bit.
@@ -518,6 +520,10 @@ class WebsocketClient {
       for (size_t i = 0; i < len; ++i) {
         iArray[i] = (short)(buffer[i] * 32768);
       }
+      
+      // if(len > 0){
+      //   LOG(INFO) << len << "   " << iArray[0] << "   " << iArray[len-1] << std::endl;
+      // }
 
       m_client.send(m_hdl, iArray, len * sizeof(short),
                     websocketpp::frame::opcode::binary, ec);

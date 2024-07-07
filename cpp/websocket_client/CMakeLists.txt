@@ -9,7 +9,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 option(ENABLE_GLOG "Whether to build glog" ON)
 option(ENABLE_WEBSOCKET "Whether to build websocket server" ON)
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ENABLE_PORTAUDIO "Whether to build websocket server" ON)
+option(ENABLE_FST "Whether to build openfst" ON) # ITN need openfst compiled
  
 if(ENABLE_WEBSOCKET)
   # cmake_policy(SET CMP0135 NEW)
@@ -69,6 +71,21 @@ if(ENABLE_PORTAUDIO)
 
 endif()
 
+if(ENABLE_FST)
+    # fst depend on glog and gflags
+    include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/gflags)
+    add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/gflags gflags)
+    include_directories(${gflags_BINARY_DIR}/include)
+      
+    # the following openfst if cloned from https://github.com/kkm000/openfst.git
+    # with some patch to fix the make errors. 
+    add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/openfst openfst)
+    include_directories(${openfst_SOURCE_DIR}/src/include)
+    if(WIN32)
+    include_directories(${openfst_SOURCE_DIR}/src/lib)
+    endif() 
+endif()
+
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # install openssl first apt-get install libssl-dev
@@ -83,11 +100,49 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
     add_compile_options(-arch arm64)
 endif()
 
-add_executable(funasr-wss-client "funasr-wss-client.cpp" "audio.cpp" "resample.cpp")
-add_executable(funasr-wss-client-2pass "funasr-wss-client-2pass.cpp" "audio.cpp" "resample.cpp" "microphone.cpp")
+
+
+set(ONNXRUNTIME_DIR /Users/zxh/code-repo/silero-vad/onnxruntime-osx-x86_64-1.12.1)
+set(FFMPEG_DIR /usr/local/ffmpeg)
+include_directories(/Users/zxh/code-repo/silero-vad/onnxruntime-osx-x86_64-1.12.1/include)
+link_directories(/Users/zxh/code-repo/silero-vad/onnxruntime-osx-x86_64-1.12.1/lib/)
+link_directories(${FFMPEG_DIR}/lib/)
+find_library(ONNXRUNTIME_LIBRARY onnxruntime PATHS ${ONNXRUNTIME_DIR})
+
+
+# include_directories(${PROJECT_SOURCE_DIR}/third_party/gflags)
+# add_subdirectory(third_party/gflags)
+# include_directories(${gflags_BINARY_DIR}/include)
+
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/include/)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/src)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/yaml-cpp/include/)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi-native-fbank)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/jieba/include)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/jieba/include/limonp/include)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi)
+include_directories(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/openfst/src/include)
+
+add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/yaml-cpp yaml-cpp)
+add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi-native-fbank/kaldi-native-fbank/csrc csrc)
+add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/src src)
+add_subdirectory(${PROJECT_SOURCE_DIR}/../onnxruntime/third_party/kaldi kaldi)
+
+
+
+file(GLOB FUNASR_SOURCES
+    ${PROJECT_SOURCE_DIR}/../onnxruntime/src/*.cpp
+)
+
+# add_executable(funasr-wss-client "funasr-wss-client.cpp" "audio.cpp" "resample.cpp")
+# add_executable(funasr-wss-client-2pass "funasr-wss-client-2pass.cpp" "audio.cpp" "resample.cpp" "microphone.cpp")
+add_executable(funasr-wss-client "funasr-wss-client.cpp" "../onnxruntime/src/audio.cpp" "../onnxruntime/src/resample.cpp")
+add_executable(funasr-wss-client-2pass "funasr-wss-client-2pass.cpp" "../onnxruntime/src/audio.cpp" "../onnxruntime/src/resample.cpp" "microphone.cpp")
+# add_executable(funasr-wss-client "funasr-wss-client.cpp"  ${FUNASR_SOURCES})
+# add_executable(funasr-wss-client-2pass "funasr-wss-client-2pass.cpp"  "microphone.cpp" ${FUNASR_SOURCES})
 # 查找 OpenSSL 库
 find_package(OpenSSL REQUIRED)
-
 # 设置 macOS 和 Linux 平台的库路径及链接
 if(APPLE)
     # OpenSSL 通过 Homebrew 安装，需要指定路径
@@ -108,11 +163,11 @@ if(APPLE)
     # else()
     #     message(FATAL_ERROR "PortAudio library not found!")
     # endif()
-
-    target_link_libraries(funasr-wss-client PUBLIC OpenSSL::SSL OpenSSL::Crypto pthread glog)
-    target_link_libraries(funasr-wss-client-2pass PUBLIC OpenSSL::SSL OpenSSL::Crypto pthread ${PORTAUDIO_LIBRARIES} glog)
+    target_link_libraries(funasr-wss-client PUBLIC funasr OpenSSL::SSL OpenSSL::Crypto pthread glog ${ONNXRUNTIME_LIBRARY})
+    target_link_libraries(funasr-wss-client-2pass PUBLIC funasr OpenSSL::SSL OpenSSL::Crypto pthread ${PORTAUDIO_LIBRARIES} glog ${ONNXRUNTIME_LIBRARY})
 else()
     # 如果在 Linux 上
     target_link_libraries(funasr-wss-client PUBLIC OpenSSL::SSL OpenSSL::Crypto pthread)
     target_link_libraries(funasr-wss-client-2pass PUBLIC OpenSSL::SSL OpenSSL::Crypto pthread portaudio)
 endif()
+
